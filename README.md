@@ -1,4 +1,4 @@
-# 🧠 machine-knowledge-lab
+# 🧠 Machine
 ### Human-in-the-Loop AI Workspace for Data & Knowledge Exploration
 
 machine is a lightweight Flask web application that provides a browser-based workspace for experimenting with data labeling, knowledge organization, and AI-assisted insight generation.
