@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Data Labeling</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Section-specific overrides and unique labeling styles */
+        body {
+            overflow: auto !important;
+        }
+
+        :root {
+            --labeling-accent: #4d4cac;
+        }
+
+        .labeling-main {
+            padding: var(--spacing-xl);
+            overflow-y: auto;
+            background: var(--color-bg);
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-lg);
+        }
+
+        #upload-screen {
+            min-height: 70vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .logo-holder {
+            max-width: 300px;
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .logo-holder img {
+            width: 100%;
+        }
+
+        .home-text {
+            max-width: 600px;
+            margin-bottom: var(--spacing-xl);
+            color: var(--color-text-light);
+        }
+
+        #drop-area {
+            border: 2px dashed var(--color-primary);
+            border-radius: var(--radius-lg);
+            padding: 3rem;
+            background: var(--color-white);
+            cursor: pointer;
+            transition: var(--transition-main);
+        }
+
+        #drop-area:hover {
+            background: var(--color-bg);
+            border-color: var(--labeling-accent);
+        }
+
+        /* Labeling Header */
+        .labeling-header {
+            display: grid;
+            grid-template-columns: 1fr 1fr 2fr auto;
+            gap: var(--spacing-md);
+            align-items: end;
+            padding: var(--spacing-lg);
+            background: var(--color-primary);
+            border-radius: var(--radius-md);
+            color: white;
+        }
+
+        .header-col select,
+        .header-col input {
+            padding: var(--spacing-sm);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--color-border);
+            width: 98%;
+            margin: var(--spacing-sm) 0 0 0;
+        }
+
+        .label-btn {
+            background: var(--color-accent);
+            color: var(--color-secondary);
+            font-weight: bold;
+            padding: var(--spacing-sm) var(--spacing-lg);
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+        }
+
+        /* Results */
+        .result-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 1em;
+            padding: 1rem;
+            background: white;
+            border-radius: var(--radius-sm);
+            margin-bottom: var(--spacing-sm);
+            box-shadow: var(--shadow-main);
+        }
+
+        .labelled {
+            padding: 0.2rem 0.6rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            font-weight: bold;
+            background: #bde2b6;
+        }
+
+        .labelled.no {
+            background: #ffaeae;
+        }
+
+        .toggle-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+            padding: 1rem;
+            border-radius: var(--radius-sm);
+        }
+
+        .loader {
+            border: 4px solid var(--color-bg);
+            border-top: 4px solid var(--labeling-accent);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav class="side-nav" id="sideNav">
+        <!-- This is where the nav lives. Called in script and app.py  id="sideNav" -->
+          {% include 'nav.html' %}
+    </nav> 
+
+    <div class="app-body">
+        <div class="header">
+            <span class="header-title"> Data Labeling</span>
+            {% include 'file_manager_widget.html' %}
+        </div>
+
+        <main class="labeling-main">
+            <!-- Initial Upload Screen -->
+            <div id="upload-screen">
+                <div class="home-text">
+                    <h1>Upload a file, label your data, and automate annotation.</h1>
+                </div>
+                <div id="drop-area">
+                    <i class="fas fa-cloud-upload-alt"
+                        style="font-size: 3rem; color: var(--color-primary); margin-bottom: 1rem;"></i>
+                    <p>Drag & Drop your CSV here or <strong>browse</strong></p>
+                    <input type="file" id="file-input" accept=".csv" style="display:none;">
+                </div>
+                <div id="upload-status" style="margin-top:1rem;"></div>
+            </div>
+
+            <!-- Labeling Workspace -->
+            <div id="workspace" style="display:none;">
+                <div class="labeling-header">
+                    <div class="header-col">
+                        <label>Select Column</label>
+                        <select id="column-select"></select>
+                    </div>
+                    <div class="header-col">
+                        <label>Match Type</label>
+                        <select id="match-type">
+                            <option value="literal">Literal Keyword</option>
+                            <option value="ai">AI Logic</option>
+                        </select>
+                    </div>
+                    <div class="header-col">
+                        <label>Search Keyword / Labeling Rule</label>
+                        <input type="text" id="label-prompt"
+                            placeholder="Type a keyword to find and label matching rows">
+                    </div>
+                    <div class="header-col">
+                        <button id="label-btn" class="label-btn">Search & Label</button>
+                    </div>
+                </div>
+
+                <div class="toggle-container" style="margin-top: 1rem;">
+                    <div>
+                        <input type="checkbox" id="toggle-labeled">
+                        <label for="toggle-labeled">Show only labeled items</label>
+                    </div>
+                    <div style="display:flex; gap:1rem;">
+                        <input type="text" id="custom-label-input" placeholder="Custom Label Name"
+                            style="display:none; width:550px; padding:0 10px;">
+                        <button id="export-btn" class="btn-primary" style="display:none;">Export CSV</button>
+                    </div>
+                </div>
+
+                <div id="loader" style="display:none; justify-content:center; padding: 2rem;">
+                    <div class="loader"></div>
+                </div>
+
+                <div id="label-results" style="margin-top: 1rem;"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        let df_json = null;
+        let lastLabelingExamples = [];
+        let lastRawResponse = "";
+        let lastColumn = "";
+        let lastDataColumns = [];
+        let lastDataRows = [];
+
+        const dropArea = document.getElementById("drop-area");
+        const fileInput = document.getElementById("file-input");
+
+        if (dropArea && fileInput) {
+            dropArea.addEventListener("click", () => fileInput.click());
+            dropArea.addEventListener("dragover", (e) => {
+                e.preventDefault();
+                dropArea.style.borderColor = "var(--color-accent)";
+            });
+            dropArea.addEventListener("dragleave", () => {
+                dropArea.style.borderColor = "var(--color-primary)";
+            });
+            dropArea.addEventListener("drop", (e) => {
+                e.preventDefault();
+                const files = e.dataTransfer.files;
+                if (files.length) {
+                    fileInput.files = files;
+                    autoUpload(files[0]);
+                }
+            });
+
+            fileInput.addEventListener("change", (e) => {
+                if (fileInput.files.length) autoUpload(fileInput.files[0]);
+            });
+        }
+
+        async function checkGlobalData() {
+            const resp = await fetch('/get-global-data-status');
+            const data = await resp.json();
+            if (data.has_data) {
+                df_json = null; // We'll let the backend use GLOBAL_DATA
+                lastDataColumns = data.columns;
+                // Fetch rows for local export logic
+                const csvResp = await fetch('/get-global-csv');
+                const csvText = await csvResp.text();
+                const rows = csvText.split('\n').map(r => r.split(','));
+                lastDataRows = rows.slice(1);
+
+                const colSel = document.getElementById("column-select");
+                colSel.innerHTML = '<option value="All Columns">All Columns</option>';
+                data.columns.forEach(col => {
+                    const opt = document.createElement("option");
+                    opt.value = col; opt.text = col; colSel.appendChild(opt);
+                });
+
+                document.getElementById("upload-screen").style.display = "none";
+                document.getElementById("workspace").style.display = "block";
+            } else {
+                document.getElementById("upload-screen").style.display = "flex";
+                document.getElementById("workspace").style.display = "none";
+            }
+        }
+
+        window.addEventListener('load', checkGlobalData);
+        // Re-init workspace whenever active file changes via the file manager
+        window.addEventListener('fm:filesChanged', checkGlobalData);
+
+        async function autoUpload(file) {
+            const formData = new FormData();
+            formData.append("file", file);
+            document.getElementById("upload-status").innerText = "Uploading...";
+
+            try {
+                const resp = await fetch("/upload-file", { method: "POST", body: formData });
+                const data = await resp.json();
+                if (data.errors && data.errors.length) throw new Error(data.errors.join('; '));
+
+                // Refresh workspace from global state and update file manager badge
+                await checkGlobalData();
+                if (typeof fmRefresh === 'function') fmRefresh();
+                window.dispatchEvent(new CustomEvent('fm:filesChanged'));
+                document.getElementById("upload-status").innerText = "";
+            } catch (err) {
+                document.getElementById("upload-status").innerText = "Upload failed: " + err.message;
+            }
+        }
+
+        document.getElementById("label-btn").onclick = async () => {
+            const prompt = document.getElementById("label-prompt").value;
+            const column = document.getElementById("column-select").value;
+            const match_type = document.getElementById("match-type").value;
+            if (!prompt) return alert("Please enter a rule or keyword.");
+
+            document.getElementById("loader").style.display = "flex";
+            document.getElementById("label-results").innerHTML = "";
+
+            try {
+                const resp = await fetch("/label", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ prompt, column, df_json, match_type }),
+                });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+
+                lastLabelingExamples = data.examples;
+                renderResults();
+                document.getElementById("export-btn").style.display = "block";
+                document.getElementById("custom-label-input").style.display = "block";
+            } catch (err) {
+                document.getElementById("label-results").innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
+            } finally {
+                document.getElementById("loader").style.display = "none";
+            }
+        };
+
+        function renderResults() {
+            const showOnly = document.getElementById("toggle-labeled").checked;
+            let html = "<h3>Results</h3>";
+            lastLabelingExamples.forEach(([ex, label], idx) => {
+                if (!showOnly || label) {
+                    html += `
+            <div class="result-row">
+              <span class="labelled ${label ? '' : 'no'}">${label ? 'LABEL' : 'NO LABEL'}</span>
+              <span>${ex}</span>
+            </div>`;
+                }
+            });
+            document.getElementById("label-results").innerHTML = html;
+        }
+
+        document.getElementById("toggle-labeled").onchange = renderResults;
+
+        document.getElementById("export-btn").onclick = () => {
+            const customLabel = document.getElementById("custom-label-input").value.trim() || "LABEL";
+            let csv = lastDataColumns.join(",") + "," + customLabel + "\n";
+            lastLabelingExamples.forEach(([ex, label], idx) => {
+                if (label) {
+                    let row = lastDataRows[idx].map(c => c == null ? "" : `"${String(c).replace(/"/g, '""')}"`).join(",");
+                    csv += row + "," + customLabel + "\n";
+                }
+            });
+            const blob = new Blob([csv], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a"); a.href = url; a.download = "labeled_data.csv"; a.click();
+        };
+    </script>
+</body>
+
+</html>

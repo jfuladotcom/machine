@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>AI Insights - AI Operations Knowledge Graph</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* ── Page-level overrides ────────────────────────────────── */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* ── Chat layout ─────────────────────────────────────────── */
+        .chat-shell {
+            display: flex;
+            flex-direction: column;
+            height: calc(95vh - var(--header-height));
+            background: #f0f2f5;
+            position: relative;
+        }
+
+        /* ── Conversation area ───────────────────────────────────── */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem 1rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.85rem;
+            scroll-behavior: smooth;
+        }
+
+        /* Thin scrollbar */
+        .chat-messages::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.18);
+            border-radius: 10px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        /* ── Message row ─────────────────────────────────────────── */
+        .msg-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 0.55rem;
+            max-width: 780px;
+            animation: fadeUp 0.22s ease both;
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .msg-row.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .msg-row.ai {
+            align-self: flex-start;
+        }
+
+        /* Avatar circles */
+        .msg-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .msg-row.user .msg-avatar {
+            background: var(--color-primary);
+            color: #fff;
+        }
+
+        .msg-row.ai .msg-avatar {
+            background: #e8c36a;
+            color: #2a3f54;
+        }
+
+        /* Bubble group (bubble + meta) */
+        .msg-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            max-width: 100%;
+        }
+
+        .msg-row.user .msg-group {
+            align-items: flex-end;
+        }
+
+        .msg-row.ai .msg-group {
+            align-items: flex-start;
+        }
+
+        /* Meta line (sender + time) */
+        .msg-meta {
+            font-size: 0.72rem;
+            color: #999;
+            padding: 0 0.4rem;
+            white-space: nowrap;
+        }
+
+        /* Bubble */
+        .msg-bubble {
+            padding: 0.65rem 1rem;
+            border-radius: 18px;
+            font-size: 0.93rem;
+            line-height: 1.55;
+            word-break: break-word;
+            max-width: 55vw;
+            position: relative;
+        }
+
+        /* User bubble — primary dark + accent tail right */
+        .msg-row.user .msg-bubble {
+            background: var(--color-primary);
+            color: #fff;
+            border-bottom-right-radius: 5px;
+            box-shadow: 0 2px 8px rgba(42, 63, 84, 0.18);
+        }
+
+        /* AI bubble — white card, left tail */
+        .msg-row.ai .msg-bubble {
+            background: #fff;
+            color: var(--color-text-main);
+            border-bottom-left-radius: 5px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+        }
+
+        /* Typing indicator */
+        .typing-row {
+            align-self: flex-start;
+            display: flex;
+            align-items: flex-end;
+            gap: 0.55rem;
+        }
+
+        .typing-bubble {
+            background: #fff;
+            border-radius: 18px;
+            border-bottom-left-radius: 5px;
+            padding: 0.65rem 1rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .typing-dot {
+            width: 7px;
+            height: 7px;
+            background: #aaa;
+            border-radius: 50%;
+            animation: bounce 1.2s infinite;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            80%,
+            100% {
+                transform: translateY(0);
+            }
+
+            40% {
+                transform: translateY(-6px);
+            }
+        }
+
+        /* ── Context pill ────────────────────────────────────────── */
+        .context-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.5rem 1.2rem;
+            background: #fff;
+            border-bottom: 1px solid #e8e8e8;
+            font-size: 0.82rem;
+            color: #555;
+        }
+
+        .context-bar .ctx-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: #eaf3fb;
+            color: #1a73e8;
+            border-radius: 20px;
+            padding: 0.18rem 0.7rem;
+            font-weight: 600;
+            font-size: 0.78rem;
+        }
+
+        .context-bar .ctx-pill.empty {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        /* ── Input bar ───────────────────────────────────────────── */
+        .chat-input-area {
+            background: #fff;
+            border-top: 1px solid #e0e0e0;
+            padding: 0.75rem 1rem;
+            display: flex;
+            align-items: flex-end;
+            gap: 0.65rem;
+        }
+
+        .chat-input-wrap {
+            flex: 1;
+            background: #f0f2f5;
+            border-radius: 24px;
+            padding: 0.55rem 1rem;
+            display: flex;
+            align-items: flex-end;
+            gap: 0.5rem;
+            border: 1.5px solid transparent;
+            transition: border-color 0.2s;
+        }
+
+        .chat-input-wrap:focus-within {
+            border-color: var(--color-primary);
+            background: #fff;
+        }
+
+        #chatInput {
+            flex: 1;
+            border: none;
+            outline: none;
+            background: transparent;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.93rem;
+            resize: none;
+            line-height: 1.5;
+            max-height: 140px;
+            overflow-y: auto;
+            min-height: 22px;
+            color: var(--color-text-main);
+        }
+
+        #chatInput::placeholder {
+            color: #aaa;
+        }
+
+        .send-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--color-primary);
+            color: #fff;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+            transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+            padding: 0;
+            box-shadow: 0 2px 8px rgba(42, 63, 84, 0.25);
+        }
+
+        .send-btn:hover {
+            background: #1c2e3e;
+            transform: scale(1.06);
+            box-shadow: 0 4px 12px rgba(42, 63, 84, 0.3);
+        }
+
+        .send-btn:active {
+            transform: scale(0.96);
+        }
+
+        .send-btn:disabled {
+            background: #ccc;
+            box-shadow: none;
+            cursor: default;
+            transform: none;
+        }
+
+        /* ── Day separator ───────────────────────────────────────── */
+        .day-sep {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            color: #aaa;
+            font-size: 0.75rem;
+            text-align: center;
+            margin: 0.25rem 0;
+        }
+
+        .day-sep::before,
+        .day-sep::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #ddd;
+        }
+
+        /* ── Welcome message ─────────────────────────────────────── */
+        .welcome-card {
+            align-self: center;
+            background: #fff;
+            border-radius: 16px;
+            padding: 1.5rem 2rem;
+            text-align: center;
+            box-shadow: 0 2px 16px rgba(0, 0, 0, 0.07);
+            max-width: 440px;
+            margin: auto;
+            animation: fadeUp 0.3s ease;
+        }
+
+        .welcome-card .wc-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .welcome-card h2 {
+            margin: 0 0 0.5rem;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--color-primary);
+        }
+
+        .welcome-card p {
+            margin: 0;
+            color: #666;
+            font-size: 0.88rem;
+            line-height: 1.55;
+        }
+
+        .suggested-prompts {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            margin-top: 1.1rem;
+        }
+
+        .sugg-btn {
+            background: #f4f6fa;
+            color: var(--color-primary);
+            border: 1px solid #dde3ed;
+            border-radius: 8px;
+            padding: 0.5rem 0.85rem;
+            font-size: 0.82rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-align: left;
+            transition: background 0.18s, border-color 0.18s;
+        }
+
+        .sugg-btn:hover {
+            background: #e8eef8;
+            border-color: var(--color-primary);
+        }
+
+        /* ── Responsive ──────────────────────────────────────────── */
+        @media (max-width: 700px) {
+            .msg-bubble {
+                max-width: 78vw;
+            }
+        }
+
+        /* ── nav active override ─────────────────────────────────── */
+        .nav-item.active {
+            background: rgba(255, 255, 255, 0.18);
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ── Side nav ─────────────────────────────────────────────── -->
+
+    <nav class="side-nav" id="sideNav">
+        <!-- This is where the nav lives. Called in script and app.py  id="sideNav" -->
+          {% include 'nav.html' %}
+    </nav> 
+    <!-- ── App body ──────────────────────────────────────────────── -->
+    <div class="app-body">
+
+        <!-- Header -->
+        <div class="header">
+            <div style="display:flex;align-items:center;gap:0.7rem;">
+                <i class="fas fa-robot" style="font-size:1.3rem;color:var(--color-accent);"></i>
+                <span class="header-title" style="font-size:1.15rem;font-weight:700;letter-spacing:0.01em;">AI
+                    Insights</span>
+            </div>
+            {% include 'file_manager_widget.html' %}
+        </div>
+
+        <!-- Context bar -->
+        <div class="context-bar" id="contextBar">
+            <i class="fas fa-database" style="font-size:0.85rem;"></i>
+            <span>Active dataset:</span>
+            <span class="ctx-pill empty" id="ctxPill">
+                <i class="fas fa-exclamation-circle"></i> No file loaded
+            </span>
+            <span id="ctxMeta" style="color:#aaa;margin-left:0.2rem;"></span>
+        </div>
+
+        <!-- Chat shell -->
+        <div class="chat-shell">
+            <!-- Messages -->
+            <div class="chat-messages" id="chatMessages">
+                <!-- Welcome card (hidden once user sends first message) -->
+                <div class="welcome-card" id="welcomeCard">
+                    <div class="wc-icon">🤖</div>
+                    <h2>Hi, I'm your AI Assistant</h2>
+                    <p>Ask me anything about your uploaded data — summaries, trends, comparisons, or specific row
+                        lookups.</p>
+                    <div class="suggested-prompts" id="suggestedPrompts">
+                        <button class="sugg-btn" onclick="useSuggestion(this)">📊 Summarise this dataset for me</button>
+                        <button class="sugg-btn" onclick="useSuggestion(this)">🔍 What are the most common
+                            values?</button>
+                        <button class="sugg-btn" onclick="useSuggestion(this)">📈 What trends do you notice?</button>
+                        <button class="sugg-btn" onclick="useSuggestion(this)">⚠️ Are there any anomalies or
+                            outliers?</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input area -->
+            <div class="chat-input-area">
+                <div class="chat-input-wrap">
+                    <textarea id="chatInput" placeholder="Ask anything about your data…" rows="1"></textarea>
+                </div>
+                <button class="send-btn" id="sendBtn" title="Send" onclick="sendMessage()">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        (function () {
+            /* ── Helpers ──────────────────────────────────────────────── */
+            const messages = document.getElementById('chatMessages');
+            const input = document.getElementById('chatInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const welcome = document.getElementById('welcomeCard');
+            const ctxPill = document.getElementById('ctxPill');
+            const ctxMeta = document.getElementById('ctxMeta');
+            let isTyping = false;
+            let typingRow = null;
+
+            function pad(n) { return String(n).padStart(2, '0'); }
+            function now() {
+                const d = new Date();
+                return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            }
+
+            /* ── Context bar: load active file info ───────────────────── */
+            async function refreshContext() {
+                try {
+                    const r = await fetch('/get-global-data-status');
+                    const d = await r.json();
+                    if (d.has_data) {
+                        ctxPill.className = 'ctx-pill';
+                        ctxPill.innerHTML = `<i class="fas fa-file-csv"></i> ${d.filename}`;
+                        ctxMeta.textContent = `${(d.row_count || 0).toLocaleString()} rows · ${(d.columns || []).length} columns`;
+                    } else {
+                        ctxPill.className = 'ctx-pill empty';
+                        ctxPill.innerHTML = `<i class="fas fa-exclamation-circle"></i> No file loaded`;
+                        ctxMeta.textContent = '';
+                    }
+                } catch { }
+            }
+
+            window.addEventListener('load', refreshContext);
+            window.addEventListener('fm:filesChanged', refreshContext);
+
+            /* ── Render helpers ───────────────────────────────────────── */
+            function removeWelcome() {
+                if (welcome && welcome.parentNode) {
+                    welcome.style.animation = 'none';
+                    welcome.style.opacity = '0';
+                    welcome.style.transition = 'opacity 0.2s';
+                    setTimeout(() => welcome.remove(), 200);
+                }
+            }
+
+            function appendDaySep() {
+                const sep = document.createElement('div');
+                sep.className = 'day-sep';
+                sep.textContent = 'Today';
+                messages.appendChild(sep);
+            }
+
+            function appendBubble(who, text, time) {
+                const row = document.createElement('div');
+                row.className = `msg-row ${who}`;
+
+                const avatarLetter = who === 'user' ? 'U' : '🤖';
+                const senderLabel = who === 'user' ? 'You' : 'AI Assistant';
+
+                // User messages are escaped; AI messages are pre-rendered HTML from the backend
+                const bubbleContent = who === 'user' ? escHtml(text) : text;
+
+                row.innerHTML = `
+                <div class="msg-avatar">${avatarLetter}</div>
+                <div class="msg-group">
+                    <div class="msg-meta">${senderLabel} · ${time}</div>
+                    <div class="msg-bubble">${bubbleContent}</div>
+                </div>`;
+                messages.appendChild(row);
+                scrollDown();
+                return row;
+            }
+
+            function escHtml(s) {
+                return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            }
+
+            function formatAI(text) {
+                // Fallback formatter if needed, but backend renders md now.
+                return text;
+            }
+
+            function showTyping() {
+                if (isTyping) return;
+                isTyping = true;
+                typingRow = document.createElement('div');
+                typingRow.className = 'typing-row';
+                typingRow.innerHTML = `
+                <div class="msg-avatar" style="background:#e8c36a;color:#2a3f54;font-size:0.9rem;font-weight:700;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;">🤖</div>
+                <div class="typing-bubble">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>`;
+                messages.appendChild(typingRow);
+                scrollDown();
+            }
+
+            function hideTyping() {
+                if (typingRow) { typingRow.remove(); typingRow = null; }
+                isTyping = false;
+            }
+
+            function scrollDown() {
+                messages.scrollTop = messages.scrollHeight;
+            }
+
+            /* ── Day separator guard ──────────────────────────────────── */
+            let daySepAdded = false;
+
+            /* ── Send message ─────────────────────────────────────────── */
+            window.sendMessage = async function () {
+                const text = input.value.trim();
+                if (!text || isTyping) return;
+
+                removeWelcome();
+                if (!daySepAdded) { appendDaySep(); daySepAdded = true; }
+
+                input.value = '';
+                autoResize();
+                sendBtn.disabled = true;
+
+                const t = now();
+                appendBubble('user', text, t);
+                showTyping();
+
+                try {
+                    const resp = await fetch('/ai_prompt', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ prompt: text, key: 'global' })
+                    });
+                    const data = await resp.json();
+                    hideTyping();
+                    appendBubble('ai', data.response || 'No response received.', now());
+                } catch (err) {
+                    hideTyping();
+                    appendBubble('ai', '⚠️ Could not reach the AI. Make sure Ollama is running.', now());
+                }
+
+                sendBtn.disabled = false;
+                input.focus();
+            };
+
+            /* ── Suggested prompts ────────────────────────────────────── */
+            window.useSuggestion = function (btn) {
+                const txt = btn.textContent.replace(/^[^\s]+\s/, '').trim();
+                input.value = txt;
+                autoResize();
+                sendMessage();
+            };
+
+            /* ── Enter to send (Shift+Enter = newline) ────────────────── */
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            /* ── Auto-resize textarea ─────────────────────────────────── */
+            function autoResize() {
+                input.style.height = 'auto';
+                input.style.height = Math.min(input.scrollHeight, 140) + 'px';
+            }
+            input.addEventListener('input', autoResize);
+
+            /* ── Sidebar toggle (mirrors script.js) ───────────────────── */
+            const navToggle = document.getElementById('navToggle');
+            const sideNav = document.getElementById('sideNav');
+            if (navToggle && sideNav) {
+                navToggle.onclick = () => {
+                    const isCollapsed = sideNav.classList.toggle('collapsed');
+                    document.body.classList.toggle('side-nav-collapsed', isCollapsed);
+                    localStorage.setItem('sideNavCollapsed', isCollapsed);
+                };
+                if (localStorage.getItem('sideNavCollapsed') === 'true') {
+                    sideNav.classList.add('collapsed');
+                    document.body.classList.add('side-nav-collapsed');
+                }
+            }
+        })();
+    </script>
+</body>
+
+</html>

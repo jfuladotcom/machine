@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Knowledge Graph - AI Operations Knowledge Graph</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        .highlighted circle {stroke: #2B7CE9 !important; stroke-width: 4px !important; filter: drop-shadow(0 0 8px rgba(43,124,233,0.6)); }
+        .highlighted text { font-weight: bold !important; fill: #2B7CE9 !important; }
+        .highlighted line { stroke: #2B7CE9 !important; stroke-width: 3px !important; }
+        .faded { opacity: 0.15 !important; }
+        .faded text { fill: #aaa !important; }
+        .hovered circle { stroke: orange !important; stroke-width: 3px !important; }
+        .node:hover circle { cursor: pointer; }
+    </style>
+</head>
+
+<body>
+
+    <nav class="side-nav" id="sideNav">
+        <!-- This is where the nav lives. Called in script and app.py -->
+          {% include 'nav.html' %}
+    </nav> 
+
+    <div class="app-body">
+        <div class="header">
+            <span class="header-title">Knowledge Graph Visualization</span>
+            {% include 'file_manager_widget.html' %}
+        </div>
+
+        <div class="main">
+            <div class="left-info-panel active" id="leftInfoPanel">
+                <button class="panel-toggle-btn" id="infoToggleBtn" aria-expanded="true" aria-controls="leftInfoPanel"
+                    style="right: 0; border-radius: 0 0 8px 0;">&#171;</button>
+                
+                <div id="closeLeftPan">                
+                    <div id="filterPanelInInfo" class="filterPanelInInfo">
+                        <div class="filter-global-controls" style="flex-direction: column; align-items: stretch;">
+                            <input type="text" id="globalSearch" placeholder="Search all data..."
+                                style="padding: 0.5rem; border-radius: 4px; border: 1px solid #ccc; margin-bottom: 0.5rem;">
+                            <div style="display:flex; gap:0.5em;">
+                                <button id="toggleAllFilters" class="reset-filters-btn" style="flex:1;"></button>
+                                <button id="resetFilters" class="reset-filters-btn" style="flex:1;">Reset Filters</button>
+                            </div>
+                        </div>
+                        <div id="filterControls">
+                            <div class="info-content" id="infoContent"></div>
+                        </div>
+                    </div>                
+                </div>
+
+            </div>
+            <div class="left-panel" id="leftPanel" style="position: relative;">
+
+                <div class="center-content-wrapper">
+                    <div class="tabs" style="padding-left: 50px; padding-right: 50px;">
+                        <button class="tab-button active" onclick="switchView('graph')">Knowledge Graph</button>
+                        <button class="tab-button" onclick="switchView('bubble')">Bubble Chart</button>
+                    </div>
+                    <div id="graphContainer">
+                        <svg id="knowledgeGraph" class="knowledge-graph"></svg>
+                    </div>
+                    <div id="bubbleChartContainer" style="display:none;">
+                        <svg id="bubbleChart"></svg>
+                    </div>
+                </div>
+            </div>
+            <div class="right-panel active" id="rightPanel">
+                <button class="panel-toggle-btn" id="aiToggleBtn" aria-expanded="true" aria-controls="rightPanel"
+                    style="left: 0; border-radius: 0 0 0 8px;">&#187;</button>
+
+                <div id="closeRightPan">   
+                    <div id="aiResponse" class="ai-response">
+                        <div id="insight" style=" background:#fff; line-height: 1.5em; padding:10px; border-radius:5px;">
+                        </div>
+                    </div>
+                    <div class="ai-prompt-form" id="aipromptform">
+                        <form id="promptForm" class="prompt-form" style="margin-top:1em;">
+                            <textarea id="promptInput" rows="4"
+                                placeholder="Ask a question about this dataset..."></textarea>
+                            <button type="submit">Submit</button>
+                        </form>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+
+</html>

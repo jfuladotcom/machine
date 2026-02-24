@@ -1,0 +1,29 @@
+ <button class="nav-toggle" id="navToggle" title="Toggle Navigation">
+    <i class="fas fa-bars"></i>
+</button>
+<div class="nav-links">
+    <a href="/" class="nav-item {{ 'active' if active_page == 'dashboard' else '' }}" title="Dashboard">
+        <i class="fas fa-tachometer-alt"></i>
+        <span class="nav-label">Dashboard</span>
+    </a>
+
+    <a href="/knowledge" class="nav-item {{ 'active' if active_page == 'knowledge' else '' }}"
+        title="Knowledge Graph">
+        <i class="fas fa-project-diagram"></i>
+        <span class="nav-label">Knowledge Graph</span>
+    </a>
+    <a href="/analysis" class="nav-item {{ 'active' if active_page == 'analysis' else '' }}"
+        title="Data Labeling">
+        <i class="fas fa-chart-line"></i>
+        <span class="nav-label">Data Labeling</span>
+    </a>
+    <a href="/insights" class="nav-item {{ 'active' if active_page == 'insights' else '' }}"
+        title="AI Insights">
+        <i class="fas fa-robot"></i>
+        <span class="nav-label">AI Insights</span>
+    </a>
+    <a href="https://github.com/jfuladotcom" target="_blank" class="nav-item {{ 'active' if active_page == 'settings' else '' }}" title="My Github">
+        <i class="fas fa-cog"></i>
+        <span class="nav-label">My Github</span>
+    </a>
+</div>

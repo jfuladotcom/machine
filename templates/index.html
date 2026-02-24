@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard - AI Operations Knowledge Graph</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+
+    <nav class="side-nav" id="sideNav">
+        <!-- This is where the nav lives. Called in script and app.py  id="sideNav" -->
+          {% include 'nav.html' %}
+    </nav> 
+
+    <div class="app-body">
+        <div class="header">
+            <span class="header-title">Project Dashboard</span>
+            {% include 'file_manager_widget.html' %}
+        </div>
+
+        <div class="main dashboard">
+            <div class="dashboard-container">
+                <!-- Left Sidebar (30%): AI Summary -->
+                <aside class="dashboard-sidebar">
+                    <div class="summary-card" id="summaryCard">                        
+                        <div id="aiSummaryContent">
+                            <div class="summary-placeholder">
+                                <i class="fas fa-robot"></i>
+                                <p>summary will display here on file upload</p>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Right Content (70%): Hero + Cards -->
+                <div class="dashboard-main-content">
+                    <!-- Top Row: Hero & Guide -->
+                    <div class="dashboard-hero">
+                        <h1>AI Operations Knowledge Graph</h1>
+                        <p>An advanced analytical platform for visualizing complex datasets through knowledge graphs and
+                            automated AI insights.</p>
+
+                        <div class="guide-section"
+                            style="margin-top: 2rem; background: rgba(255,255,255,0.5); padding: 1.5rem; border-radius: var(--radius-md);">
+                            <h3 style="margin-top:0;"><i class="fas fa-book-open"></i> Quick Start Guide</h3>
+                            <div class="guide-steps">
+                                <ol style="padding-left: 1.2rem; margin: 0;">
+                                    <li>Click the <strong><span class="fas fa-folder-open"></span> Files</strong> button in the header to upload your data
+                                        files.</li>
+                                    <li>Select a CSV file as <strong>Active</strong> to begin analysis.</li>
+                                    <li>Explore the <strong>Knowledge Graph</strong> or use <strong>AI Insights</strong>
+                                        to discover patterns.</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Row: 3-Column Grid -->
+                    <div class="dashboard-section">
+                        <div class="dashboard-card">
+                            <h3><i class="fas fa-project-diagram"></i> Knowledge Graph</h3>
+                            <p>Explore multidimensional relationships within your data. Click nodes to uncover hidden
+                                connections.</p>
+                            <a href="/knowledge" class="card-link">Explore Graph →</a>
+                        </div>
+
+                        <div class="dashboard-card">
+                            <h3><i class="fas fa-chart-line"></i> Data Labeling</h3>
+                            <p>Visualize distributions and trends. Identify outliers across your dataset at a glance.
+                            </p>
+                            <a href="/analysis" class="card-link">Run Analysis →</a>
+                        </div>
+
+                        <div class="dashboard-card">
+                            <h3><i class="fas fa-comment-dots"></i> AI Insights</h3>
+                            <p>Ask questions directly to your data and receive objective, concise, and actionable
+                                summaries.</p>
+                            <a href="/insights" class="card-link">Talk to AI →</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        (function () {
+            const summaryBox = document.getElementById('aiSummaryContent');
+            let lastFile = null;
+
+            async function refreshDashboardSummary() {
+                try {
+                    const resp = await fetch('/get-global-data-status');
+                    const data = await resp.json();
+
+                    if (!data.has_data) {
+                        lastFile = null;
+                        summaryBox.innerHTML = `
+                            <div class="summary-placeholder">
+                                <i class="fas fa-robot"></i>
+                                <p>summary will display here on file upload</p>
+                            </div>`;
+                        return;
+                    }
+
+                    if (data.filename === lastFile) return;
+                    lastFile = data.filename;
+
+                    summaryBox.innerHTML = `
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:1rem; padding: 2rem;">
+                            <div class="loader"></div>
+                            <p style="color:#666; font-size:0.9rem;">AI is analyzing <strong>${data.filename}</strong>...</p>
+                        </div>`;
+
+                    const aiResp = await fetch('/ai_prompt', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            prompt: "You are a data analyst. Provide a concise summary breakdown of this dataset. Highlight the main columns and what the data seems to represent. Limit to 3-4 sentences. Use a markdown format on output.",
+                            key: 'global'
+                        })
+                    });
+                    const aiData = await aiResp.json();
+                    summaryBox.innerHTML = aiData.response || "Failed to generate summary.";
+                } catch (err) {
+                    console.error("Summary error:", err);
+                    summaryBox.innerHTML = `<p style="color:red; padding:1rem;">Error generating summary: ${err.message}</p>`;
+                }
+            }
+
+            window.addEventListener('load', refreshDashboardSummary);
+            window.addEventListener('fm:filesChanged', refreshDashboardSummary);
+        })();
+    </script>
+</body>
+
+</html>

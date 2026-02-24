@@ -1,0 +1,415 @@
+{# file_manager_widget.html - Shared file manager dropdown widget for all pages #}
+<style>
+    /* ── File Manager Widget ── */
+    .fm-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .fm-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.45rem 1rem;
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s, transform 0.1s;
+        white-space: nowrap;
+    }
+
+    .fm-btn:hover {
+        background: rgba(255, 255, 255, 0.28);
+        transform: translateY(-1px);
+    }
+
+    .fm-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 5px;
+        background: var(--color-accent, #f6b93b);
+        color: #333;
+        font-size: 0.72rem;
+        font-weight: 800;
+        border-radius: 20px;
+    }
+
+    .fm-panel {
+        display: none;
+        position: absolute;
+        top: calc(100% + 10px);
+        right: 0;
+        width: 360px;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+        z-index: 9999;
+        overflow: hidden;
+        flex-direction: column;
+    }
+
+    .fm-panel.open {
+        display: flex;
+    }
+
+    .fm-panel-header {
+        padding: 1rem 1.2rem 0.6rem;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #f8f9fc;
+    }
+
+    .fm-panel-header h4 {
+        margin: 0;
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #333;
+    }
+
+    .fm-panel-header .fm-close {
+        background: none;
+        border: none;
+        font-size: 1.1rem;
+        color: #888;
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 4px;
+        line-height: 1;
+    }
+
+    .fm-panel-header .fm-close:hover {
+        background: #eee;
+        color: #333;
+    }
+
+    .fm-file-list {
+        list-style: none;
+        margin: 0;
+        padding: 0.5rem 0;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .fm-file-list li {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        padding: 0.55rem 1.2rem;
+        transition: background 0.15s;
+        border-bottom: 1px solid #f3f3f3;
+    }
+
+    .fm-file-list li:last-child {
+        border-bottom: none;
+    }
+
+    .fm-file-list li:hover {
+        background: #f8f9fc;
+    }
+
+    .fm-file-icon {
+        font-size: 1.3rem;
+        width: 26px;
+        text-align: center;
+        flex-shrink: 0;
+    }
+
+    .fm-file-icon .fa-file-csv {
+        color: #2ecc71;
+    }
+
+    .fm-file-icon .fa-file-pdf {
+        color: #e74c3c;
+    }
+
+    .fm-file-icon .fa-file-excel {
+        color: #27ae60;
+    }
+
+    .fm-file-icon .fa-file-alt {
+        color: #7f8c8d;
+    }
+
+    .fm-file-icon .fa-file-code {
+        color: #3498db;
+    }
+
+    .fm-file-icon .fa-file {
+        color: #95a5a6;
+    }
+
+    .fm-file-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .fm-file-name {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #222;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .fm-file-meta {
+        font-size: 0.75rem;
+        color: #888;
+    }
+
+    .fm-active-badge {
+        font-size: 0.68rem;
+        background: #d4edda;
+        color: #155724;
+        border-radius: 4px;
+        padding: 1px 5px;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+
+    .fm-set-active-btn {
+        font-size: 0.7rem;
+        background: #eaf3fb;
+        color: #1a73e8;
+        border: 1px solid #bee3f8;
+        border-radius: 4px;
+        padding: 2px 6px;
+        cursor: pointer;
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
+    .fm-set-active-btn:hover {
+        background: #bee3f8;
+    }
+
+    .fm-remove-btn {
+        background: none;
+        border: none;
+        color: #bbb;
+        cursor: pointer;
+        font-size: 0.95rem;
+        padding: 2px 4px;
+        border-radius: 4px;
+        flex-shrink: 0;
+        transition: color 0.15s, background 0.15s;
+    }
+
+    .fm-remove-btn:hover {
+        color: #e74c3c;
+        background: #ffeaea;
+    }
+
+    .fm-empty-msg {
+        text-align: center;
+        padding: 1.5rem 1rem;
+        color: #aaa;
+        font-size: 0.88rem;
+    }
+
+    .fm-footer {
+        padding: 0.75rem 1.2rem;
+        border-top: 1px solid #eee;
+        background: #f8f9fc;
+    }
+
+    .fm-add-label {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        width: 95%;
+        padding: 0.55rem;
+        background: var(--color-primary, #4d4cac);
+        color: #fff;
+        border-radius: 8px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.2s;
+        text-align: center;
+    }
+
+    .fm-add-label:hover {
+        opacity: 0.88;
+    }
+
+    .fm-uploading-msg {
+        text-align: center;
+        font-size: 0.82rem;
+        color: #666;
+        margin-top: 0.4rem;
+        min-height: 1.1em;
+    }
+</style>
+
+<div class="fm-wrapper" id="fileManagerWrapper">
+    <button class="fm-btn" id="fmToggleBtn" onclick="fmToggle(event)" title="Manage uploaded files">
+        <i class="fas fa-folder-open"></i>
+        <span>Files</span>
+        <span class="fm-badge" id="fmBadge">0</span>
+    </button>
+
+    <div class="fm-panel" id="fmPanel">
+        <div class="fm-panel-header">
+            <h4><i class="fas fa-layer-group" style="margin-right:6px;color:#4d4cac;"></i>File Manager</h4>
+            <button class="fm-close" onclick="fmClose()" title="Close">✕</button>
+        </div>
+        <ul class="fm-file-list" id="fmFileList">
+            <li>
+                <div class="fm-empty-msg">No files uploaded yet.</div>
+            </li>
+        </ul>
+        <div class="fm-footer">
+            <label class="fm-add-label" for="fmFileInput">
+                <i class="fas fa-plus-circle"></i> Add Files
+                <input type="file" id="fmFileInput" multiple accept=".csv,.pdf,.xlsx,.xls,.txt,.json"
+                    style="display:none;" onchange="fmUpload(this)">
+            </label>
+            <div class="fm-uploading-msg" id="fmUploadMsg"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        // ── File Manager State ──
+        let _fmOpen = false;
+
+        window.fmToggle = function (e) {
+            e.stopPropagation();
+            _fmOpen = !_fmOpen;
+            document.getElementById('fmPanel').classList.toggle('open', _fmOpen);
+            if (_fmOpen) fmRefresh();
+        };
+
+        window.fmClose = function () {
+            _fmOpen = false;
+            document.getElementById('fmPanel').classList.remove('open');
+        };
+
+        document.addEventListener('click', function (e) {
+            const wrapper = document.getElementById('fileManagerWrapper');
+            if (wrapper && !wrapper.contains(e.target)) fmClose();
+        });
+
+        function fmFormatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+
+        window.fmRefresh = async function () {
+            try {
+                const resp = await fetch('/list-files');
+                const data = await resp.json();
+                const list = document.getElementById('fmFileList');
+                const badge = document.getElementById('fmBadge');
+
+                badge.textContent = data.files.length;
+
+                if (data.files.length === 0) {
+                    list.innerHTML = '<li><div class="fm-empty-msg">No files uploaded yet.</div></li>';
+                    return;
+                }
+
+                list.innerHTML = data.files.map(f => `
+                <li>
+                    <div class="fm-file-icon"><i class="fas ${f.icon}"></i></div>
+                    <div class="fm-file-info">
+                        <div class="fm-file-name" title="${f.filename}">${f.filename}</div>
+                        <div class="fm-file-meta">
+                            ${fmFormatSize(f.size)}
+                            ${f.type === 'csv' ? ` &middot; ${f.row_count.toLocaleString()} rows` : ''}
+                        </div>
+                    </div>
+                    ${f.is_active
+                        ? '<span class="fm-active-badge">✓ Active</span>'
+                        : (f.type === 'csv' ? `<button class="fm-set-active-btn" onclick="fmSetActive('${f.filename}')">Set Active</button>` : '')
+                    }
+                    <button class="fm-remove-btn" title="Remove file" onclick="fmRemove('${f.filename}')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </li>
+            `).join('');
+            } catch (err) {
+                console.error('File manager refresh error:', err);
+            }
+        };
+
+        window.fmUpload = async function (input) {
+            const files = input.files;
+            if (!files.length) return;
+            const msg = document.getElementById('fmUploadMsg');
+            msg.textContent = `Uploading ${files.length} file(s)...`;
+
+            const formData = new FormData();
+            for (const f of files) formData.append('file', f);
+
+            try {
+                const resp = await fetch('/upload-file', { method: 'POST', body: formData });
+                const data = await resp.json();
+                if (data.errors && data.errors.length) {
+                    msg.textContent = '⚠ ' + data.errors.join('; ');
+                } else {
+                    msg.textContent = `✓ ${data.uploaded.length} file(s) added.`;
+                }
+                await fmRefresh();
+                // Notify other parts of the page if they listen
+                window.dispatchEvent(new CustomEvent('fm:filesChanged'));
+            } catch (err) {
+                msg.textContent = 'Upload failed: ' + err.message;
+            }
+            setTimeout(() => { msg.textContent = ''; }, 3500);
+            input.value = '';
+        };
+
+        window.fmRemove = async function (filename) {
+            if (!confirm(`Remove "${filename}" from the app?`)) return;
+            try {
+                const resp = await fetch('/remove-file', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename })
+                });
+                await resp.json();
+                await fmRefresh();
+                window.dispatchEvent(new CustomEvent('fm:filesChanged'));
+            } catch (err) {
+                alert('Remove failed: ' + err.message);
+            }
+        };
+
+        window.fmSetActive = async function (filename) {
+            try {
+                const resp = await fetch('/set-active-file', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename })
+                });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                await fmRefresh();
+                window.dispatchEvent(new CustomEvent('fm:filesChanged'));
+            } catch (err) {
+                alert('Could not set active file: ' + err.message);
+            }
+        };
+
+        // Initialize badge on load
+        window.addEventListener('load', function () {
+            fmRefresh();
+        });
+    })();
+</script>
