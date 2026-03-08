@@ -1,11 +1,15 @@
 import os
 import re
+import json
+import textwrap
 import requests
 import pandas as pd
 import numpy as np
+from datetime import datetime
 from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 from markdown_it import MarkdownIt
+from evals import run_model_eval
 
 app = Flask(__name__)
 md = MarkdownIt()
@@ -15,6 +19,12 @@ UPLOAD_FOLDER = os.path.join('static', 'uploads')
 ALLOWED_EXTENSIONS = {'csv', 'pdf', 'xlsx', 'xls', 'txt', 'json'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024  # 64MB max
+
+# ── Eval / Ollama constants ───────────────────────────────────────────────────
+RESULTS_DIR = os.path.join(os.path.dirname(__file__), 'static')
+OLLAMA_BASE = "http://localhost:11434"
+OLLAMA_CHAT = f"{OLLAMA_BASE}/api/chat"
+OLLAMA_TAGS = f"{OLLAMA_BASE}/api/tags"
 
 # Note: Ollama doesn't typically require a key for local use
 
@@ -60,6 +70,10 @@ def tool():
 @app.route('/insights')
 def insights():
     return render_template('insights.html', active_page='insights')
+
+@app.route('/eval')
+def eval_dashboard():
+    return render_template('eval.html', active_page='eval')
 
 @app.route('/settings')
 def settings():
@@ -293,7 +307,7 @@ def ai_prompt():
         
     except requests.exceptions.HTTPError as e:
         if response.status_code == 404:
-            answer = f"Error: Model 'llama3' or Chat endpoint not found. Available models: {', '.join(['gemma-uncensored', 'gemma3:27b', 'llama4', 'llama3'])}"
+            answer = f"Error: Model 'llama3' or Chat endpoint not found. Available models: {', '.join([''])}"
         else:
             answer = f"Error communicating with local model: {str(e)}"
     except requests.exceptions.RequestException as e:
@@ -422,5 +436,207 @@ def label():
     except Exception as e:
         return jsonify({'error': f'Ollama labeling failed: {str(e)}'}), 500
 
+# ── Eval: model discovery ─────────────────────────────────────────────────────
+
+@app.route('/api/models')
+def get_models():
+    """Return list of locally installed Ollama models."""
+    try:
+        resp = requests.get(OLLAMA_TAGS, timeout=5)
+        resp.raise_for_status()
+        models = [m['name'] for m in resp.json().get('models', [])]
+        return jsonify({'models': models})
+    except requests.exceptions.ConnectionError:
+        return jsonify({'models': [], 'error': 'Ollama not running'})
+    except Exception as e:
+        return jsonify({'models': [], 'error': str(e)})
+
+
+# ── Eval: run / results ───────────────────────────────────────────────────────
+
+@app.route('/api/run-eval', methods=['POST'])
+def run_eval():
+    model     = request.json.get('model', 'llama3')
+    benchmark = request.json.get('benchmark', 'all')
+    results   = run_model_eval(model, benchmark)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename  = f"results_{timestamp}.json"
+    filepath  = os.path.join(RESULTS_DIR, filename)
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    with open(filepath, 'w') as f:
+        json.dump(results, f, indent=2)
+
+    results['_filename'] = filename
+    return jsonify(results)
+
+
+@app.route('/api/results')
+def get_results():
+    """Return the most recently saved result file."""
+    files = _list_result_files()
+    if not files:
+        return jsonify({})
+    latest = files[-1]
+    with open(os.path.join(RESULTS_DIR, latest), 'r') as f:
+        data = json.load(f)
+    data['_filename'] = latest
+    return jsonify(data)
+
+
+# ── Eval: save / load runs ────────────────────────────────────────────────────
+
+@app.route('/api/save-run', methods=['POST'])
+def save_run():
+    """Explicitly save the current result state sent from the browser."""
+    data      = request.json
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename  = f"results_{timestamp}.json"
+    filepath  = os.path.join(RESULTS_DIR, filename)
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    with open(filepath, 'w') as f:
+        json.dump(data, f, indent=2)
+    return jsonify({'filename': filename, 'ok': True})
+
+
+@app.route('/api/load-runs')
+def load_runs():
+    """List all saved result files, newest first."""
+    return jsonify(list(reversed(_list_result_files())))
+
+
+@app.route('/api/load-run/<filename>')
+def load_run(filename):
+    """Return a specific saved run by filename."""
+    if not filename.startswith('results_') or not filename.endswith('.json'):
+        return jsonify({'error': 'Invalid filename'}), 400
+    filepath = os.path.join(RESULTS_DIR, filename)
+    if not os.path.exists(filepath):
+        return jsonify({'error': 'File not found'}), 404
+    with open(filepath, 'r') as f:
+        data = json.load(f)
+    data['_filename'] = filename
+    return jsonify(data)
+
+
+# ── Eval: AI chat ─────────────────────────────────────────────────────────────
+
+@app.route('/api/chat', methods=['POST'])
+def eval_chat():
+    """
+    Proxies a chat request to Ollama using whichever model the user selected.
+    Body: { message, model, history: [{role, content}], context: <eval results> }
+    """
+    body         = request.json or {}
+    user_message = body.get('message', '').strip()
+    history      = body.get('history', [])
+    context      = body.get('context', {})
+    chat_model   = body.get('model') or context.get('model', 'llama3')
+
+    if not user_message:
+        return jsonify({'error': 'Empty message'}), 400
+
+    system_prompt = _build_system_prompt(context)
+    messages = [{'role': 'system', 'content': system_prompt}]
+    messages.extend(history)
+    messages.append({'role': 'user', 'content': user_message})
+
+    try:
+        resp = requests.post(
+            OLLAMA_CHAT,
+            json={'model': chat_model, 'messages': messages, 'stream': False},
+            timeout=60
+        )
+        resp.raise_for_status()
+        reply = resp.json().get('message', {}).get('content', '(no response)')
+        return jsonify({'reply': reply})
+    except requests.exceptions.HTTPError as e:
+        # If Ollama returns a 400 or 404, try to extract its specific JSON error message
+        try:
+            error_details = resp.json().get('error', str(e))
+        except:
+            error_details = str(e)
+        return jsonify({'reply': f'⚠️ Error: {error_details}'})
+    except requests.exceptions.ConnectionError:
+        return jsonify({'reply': '⚠️ Ollama is not running. Start it with `ollama serve` and try again.'})
+    except Exception as e:
+        return jsonify({'reply': f'⚠️ Error: {str(e)}'})
+
+
+# ── Eval: helpers ─────────────────────────────────────────────────────────────
+
+def _list_result_files():
+    """Return sorted list of result JSON filenames in RESULTS_DIR."""
+    try:
+        return sorted(
+            f for f in os.listdir(RESULTS_DIR)
+            if f.startswith('results_') and f.endswith('.json')
+        )
+    except FileNotFoundError:
+        return []
+
+
+def _build_system_prompt(context: dict) -> str:
+    if not context or 'metrics' not in context:
+        return textwrap.dedent("""\
+            ## Your Role
+            You are an insightful AI assistant embedded in the **Local AI Evaluation Dashboard**.
+            No evaluation results are loaded yet — help the user understand how to run one.
+
+            ## Response Format
+            **Always reply using Markdown.** Use `##` / `###` headers, bullet lists, **bold**,
+            _italic_, and fenced code blocks where they improve clarity.
+            Never reply with plain, unformatted paragraphs.
+
+            ## Responsibilities
+            - Explain what each benchmark and metric measures.
+            - Guide the user through running their first evaluation.
+            - For topics outside the dashboard, answer helpfully while noting the response
+              is not drawn from loaded results.
+
+            ## Tone
+            Professional, approachable, and concise.
+        """)
+
+    model      = context.get('model', 'unknown')
+    summary    = context.get('summary', {})
+    metrics    = context.get('metrics', {})
+    task_block = "\n".join(
+        f"  - **{name}**: pass@1={m.get('pass@1', '?')}, "
+        f"latency={m.get('latency_ms', '?')} ms, tokens={m.get('tokens', '?')}"
+        for name, m in metrics.items()
+    )
+
+    return textwrap.dedent(f"""\
+        ## Your Role
+        You are an insightful AI assistant embedded in the **Local AI Evaluation Dashboard**.
+        The user just ran an evaluation for model **{model}**.
+
+        ## Response Format
+        **Always reply using Markdown.** Use `##` / `###` headers, bullet lists, **bold**,
+        _italic_, and fenced code blocks where they improve clarity.
+        Never reply with plain, unformatted paragraphs.
+
+        ## Evaluation Summary
+        | Metric | Value |
+        |--------|-------|
+        | Avg Pass@1 | {summary.get('avg_pass1', 'N/A')} |
+        | Avg Latency | {summary.get('avg_latency', 'N/A')} ms |
+        | Total Tasks | {summary.get('total_tasks', 'N/A')} |
+
+        ## Per-Task Breakdown
+        {task_block}
+
+        ## Instructions
+        - Answer questions about the results above concisely and helpfully.
+        - Highlight notable strengths, weaknesses, or anomalies you spot.
+        - For topics outside the evaluation data, provide general guidance while noting
+          it is not based on the current results.
+    """)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+
 if __name__ == '__main__':
+    os.makedirs(RESULTS_DIR, exist_ok=True)
     app.run(debug=True, port=5000)
